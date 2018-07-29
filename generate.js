@@ -37,6 +37,26 @@ function referenceType (schema) {
   return titleCase(schema['$ref'].replace('#/components/schemas/', ''))
 }
 
+function generateInlineType (schema) {
+  if (schema.anyOf) {
+    const types = []
+
+    for (const a of schema.anyOf) {
+      if (isPrimitive(a)) {
+        types.push(primitiveType(a))
+      } else if (isReference(a)) {
+        types.push(referenceType(a))
+      } else {
+        console.error('anyOf with non-primitive & non-reference child')
+      }
+    }
+
+    return `${types.join(' | ')}`
+  } else {
+    console.error('Unknown schema type (not object nor anyOf)')
+  }
+}
+
 function generateType (name, schema) {
   if (schema.type === 'object') {
     const keys = Object.keys(schema.properties)
@@ -63,6 +83,8 @@ function generateType (name, schema) {
           properties.push(`    ${key}${optional ? '?' : ''}: ${primitiveType(itemSchema)}[]${nullable ? ' | null' : ''}`)
         } else if (isReference(itemSchema)) {
           properties.push(`    ${key}${optional ? '?' : ''}: ${referenceType(itemSchema)}[]${nullable ? ' | null' : ''}`)
+        } else if (itemSchema.anyOf) {
+          properties.push(`    ${key}${optional ? '?' : ''}: (${generateInlineType(itemSchema)})[]${nullable ? ' | null' : ''}`)
         } else {
           const itemName = `${name}_${titleCase(key)}`
           extra.push(generateType(itemName, itemSchema))
@@ -81,19 +103,7 @@ function generateType (name, schema) {
 
     return `${extra.length ? extra.join('\n') + '\n' : ''}interface ${name} {\n${properties.join('\n')}\n}\n`
   } else if (schema.anyOf) {
-    const types = []
-
-    for (const a of schema.anyOf) {
-      if (isPrimitive(a)) {
-        types.push(primitiveType(a))
-      } else if (isReference(a)) {
-        types.push(referenceType(a))
-      } else {
-        console.error('anyOf with non-primitive & non-reference child')
-      }
-    }
-
-    return `type ${name} = ${types.join(' | ')}\n`
+    return `type ${name} = ${generateInlineType(schema)}\n`
   } else {
     console.error('Unknown schema type (not object nor anyOf)')
   }
