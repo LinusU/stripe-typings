@@ -37,6 +37,14 @@ function referenceType (schema) {
   return titleCase(schema['$ref'].replace('#/components/schemas/', ''))
 }
 
+function isEnum (schema) {
+  return Boolean(schema.enum)
+}
+
+function enumType (schema) {
+  return schema.enum.map(v => JSON.stringify(v)).join(' | ')
+}
+
 function isAnyOf (schema) {
   return Boolean(schema.anyOf)
 }
@@ -69,7 +77,9 @@ function objectType (schema, extra) {
 }
 
 function generateInlineType (schema, extra) {
-  if (isPrimitive(schema)) {
+  if (isEnum(schema)) {
+    return enumType(schema)
+  } else if (isPrimitive(schema)) {
     return primitiveType(schema)
   } else if (isReference(schema)) {
     return referenceType(schema)
