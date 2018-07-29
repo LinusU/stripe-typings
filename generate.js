@@ -100,6 +100,12 @@ function generateType (name, schema) {
       const nullable = propertySchema.nullable || false
       const optional = !(schema.required || []).includes(key)
 
+      if (propertySchema.description) {
+        properties.push('    /**')
+        properties.push('     * ' + propertySchema.description)
+        properties.push('     */')
+      }
+
       properties.push(`    ${key}${optional ? '?' : ''}: ${generateInlineType(propertySchema, extra)}${nullable ? ' | null' : ''}`)
     }
 
