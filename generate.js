@@ -49,13 +49,11 @@ function generateType (name, schema) {
       const optional = !(schema.required || []).includes(key)
 
       if (isPrimitive(propertySchema)) {
-        properties.push(`    ${key}${optional ? '?' : ''}: ${primitiveType(propertySchema)}[]${nullable ? ' | null' : ''}`)
+        properties.push(`    ${key}${optional ? '?' : ''}: ${primitiveType(propertySchema)}${nullable ? ' | null' : ''}`)
       } else if (isReference(propertySchema)) {
-        properties.push(`    ${key}${optional ? '?' : ''}: ${referenceType(propertySchema)}[]${nullable ? ' | null' : ''}`)
+        properties.push(`    ${key}${optional ? '?' : ''}: ${referenceType(propertySchema)}${nullable ? ' | null' : ''}`)
       } else if (propertySchema.anyOf) {
-        const propertyName = `${name}_${titleCase(key)}`
-        extra.push(generateType(propertyName, propertySchema))
-        properties.push(`    ${key}${optional ? '?' : ''}: ${propertyName}${nullable ? ' | null' : ''}`)
+        properties.push(`    ${key}${optional ? '?' : ''}: ${generateInlineType(propertySchema)}${nullable ? ' | null' : ''}`)
       } else if (propertySchema.type === 'array') {
         const itemSchema = propertySchema.items
 
