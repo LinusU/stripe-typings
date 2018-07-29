@@ -37,23 +37,55 @@ function referenceType (schema) {
   return titleCase(schema['$ref'].replace('#/components/schemas/', ''))
 }
 
-function generateInlineType (schema) {
-  if (schema.anyOf) {
-    const types = []
+function isAnyOf (schema) {
+  return Boolean(schema.anyOf)
+}
 
-    for (const a of schema.anyOf) {
-      if (isPrimitive(a)) {
-        types.push(primitiveType(a))
-      } else if (isReference(a)) {
-        types.push(referenceType(a))
-      } else {
-        console.error('anyOf with non-primitive & non-reference child')
-      }
-    }
+function anyOfType (schema, extra) {
+  return schema.anyOf.map(a => generateInlineType(a, extra)).join(' | ')
+}
 
-    return `${types.join(' | ')}`
+function isArray (schema) {
+  return (schema.type === 'array')
+}
+
+function arrayType (schema, extra) {
+  return schema.items ? `(${generateInlineType(schema.items, extra)})[]` : 'any[]'
+}
+
+function objectType (schema, extra) {
+  const keys = Object.keys(schema.properties)
+  const properties = []
+
+  for (const key of keys) {
+    const propertySchema = schema.properties[key]
+    const nullable = propertySchema.nullable || false
+    const optional = !(schema.required || []).includes(key)
+
+    properties.push(`${key}${optional ? '?' : ''}: ${generateInlineType(propertySchema, extra)}${nullable ? ' | null' : ''}`)
+  }
+
+  return `{ ${properties.join(', ')} }`
+}
+
+function generateInlineType (schema, extra) {
+  if (isPrimitive(schema)) {
+    return primitiveType(schema)
+  } else if (isReference(schema)) {
+    return referenceType(schema)
+  } else if (isAnyOf(schema)) {
+    return anyOfType(schema, extra)
+  } else if (isArray(schema)) {
+    return arrayType(schema, extra)
+  } else if (schema.type === 'object' && !schema.properties) {
+    return '{ [key: string]: string }'
+  } else if (schema.type === 'object' && schema.title) {
+    extra.push(generateType(schema.title, schema))
+    return schema.title
+  } else if (schema.type === 'object') {
+    return objectType(schema)
   } else {
-    console.error('Unknown schema type (not object nor anyOf)')
+    throw new Error('Not implemented')
   }
 }
 
@@ -68,37 +100,7 @@ function generateType (name, schema) {
       const nullable = propertySchema.nullable || false
       const optional = !(schema.required || []).includes(key)
 
-      if (isPrimitive(propertySchema)) {
-        properties.push(`    ${key}${optional ? '?' : ''}: ${primitiveType(propertySchema)}${nullable ? ' | null' : ''}`)
-      } else if (isReference(propertySchema)) {
-        properties.push(`    ${key}${optional ? '?' : ''}: ${referenceType(propertySchema)}${nullable ? ' | null' : ''}`)
-      } else if (propertySchema.anyOf) {
-        properties.push(`    ${key}${optional ? '?' : ''}: ${generateInlineType(propertySchema)}${nullable ? ' | null' : ''}`)
-      } else if (propertySchema.type === 'array') {
-        const itemSchema = propertySchema.items
-
-        if (!itemSchema) {
-          properties.push(`    ${key}${optional ? '?' : ''}: any[]${nullable ? ' | null' : ''}`)
-        } else if (isPrimitive(itemSchema)) {
-          properties.push(`    ${key}${optional ? '?' : ''}: ${primitiveType(itemSchema)}[]${nullable ? ' | null' : ''}`)
-        } else if (isReference(itemSchema)) {
-          properties.push(`    ${key}${optional ? '?' : ''}: ${referenceType(itemSchema)}[]${nullable ? ' | null' : ''}`)
-        } else if (itemSchema.anyOf) {
-          properties.push(`    ${key}${optional ? '?' : ''}: (${generateInlineType(itemSchema)})[]${nullable ? ' | null' : ''}`)
-        } else {
-          const itemName = `${name}_${titleCase(key)}`
-          extra.push(generateType(itemName, itemSchema))
-          properties.push(`    ${key}${optional ? '?' : ''}: ${itemName}[]${nullable ? ' | null' : ''}`)
-        }
-      } else if (propertySchema.type === 'object' && !propertySchema.properties) {
-        properties.push(`    ${key}${optional ? '?' : ''}: { [key: string]: string }${nullable ? ' | null' : ''}`)
-      } else if (propertySchema.type === 'object') {
-        const propertyName = `${name}_${titleCase(key)}`
-        extra.push(generateType(propertyName, propertySchema))
-        properties.push(`    ${key}${optional ? '?' : ''}: ${propertyName}${nullable ? ' | null' : ''}`)
-      } else {
-        console.error(`Unknown type:`, propertySchema)
-      }
+      properties.push(`    ${key}${optional ? '?' : ''}: ${generateInlineType(propertySchema, extra)}${nullable ? ' | null' : ''}`)
     }
 
     return `${extra.length ? extra.join('\n') + '\n' : ''}interface ${name} {\n${properties.join('\n')}\n}\n`
