@@ -1,0 +1,14 @@
+{
+  "name": "stripe-typings",
+  "version": "0.0.0",
+  "license": "MIT",
+  "repository": "LinusU/stripe-typings",
+  "scripts": {
+    "test": "standard --fix",
+    "update-input": "curl https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json > input.json",
+    "generate-output": "node generate.js > output.d.ts"
+  },
+  "devDependencies": {
+    "standard": "^11.0.1"
+  }
+}
