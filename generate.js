@@ -4,6 +4,14 @@ function titleCase (snake) {
   return snake.replace(/(^|_)([a-z])/g, (s) => s.replace('_', '').toUpperCase())
 }
 
+function upperCaseFirst (name) {
+  return `${name[0].toUpperCase()}${name.slice(1)}`
+}
+
+function toSingular (name) {
+  return name.replace(/s$/, '')
+}
+
 function isPrimitive (schema) {
   switch (schema.type) {
     case 'boolean':
@@ -130,4 +138,81 @@ function generateType (name, schema) {
 for (const [id, schema] of Object.entries(input.components.schemas)) {
   if (id === 'error') continue
   console.log(generateType(titleCase(id), schema))
+}
+
+for (const [path, info] of Object.entries(input.paths)) {
+  let re
+
+  if ((re = /^\/v1\/([a-z]+)$/.exec(path))) {
+    const name = re[1]
+
+    if (info.get) {
+      const optionsName = `${toSingular(upperCaseFirst(name))}ListOptions`
+      const { schema } = info.get.requestBody.content['application/x-www-form-urlencoded']
+      console.log(generateType(optionsName, schema))
+
+      console.error(info.get.responses['200'].content['application/json'])
+      const responseItem = referenceType(info.get.responses['200'].content['application/json'].schema.properties.data.items)
+      console.error(`Stripe.${name}.list(data?: ${optionsName}, options?: HeaderOptions): Promise<List<${responseItem}>>`)
+    }
+
+    if (info.post) {
+      const optionsName = `${toSingular(upperCaseFirst(name))}CreationOptions`
+      const { schema } = info.post.requestBody.content['application/x-www-form-urlencoded']
+      console.log(generateType(optionsName, schema))
+
+      const responseType = referenceType(info.post.responses['200'].content['application/json'].schema)
+      console.error(`Stripe.${name}.create(data: ${optionsName}, options?: HeaderOptions): Promise<${responseType}>`)
+    }
+  }
+
+  if ((re = /^\/v1\/([a-z]+)\/\{([a-z]+)\}$/.exec(path))) {
+    const name = re[1]
+
+    if (info.get) {
+      console.error(`Stripe.${name}.retrieve()`)
+    }
+
+    if (info.post) {
+      console.error(`Stripe.${name}.update()`)
+    }
+  }
+
+  if ((re = /^\/v1\/([a-z]+)\/\{([a-z]+)\}\/([a-z]+)$/.exec(path))) {
+    const name = re[1]
+
+    const isAction = (Object.keys(info).length === 1 && info.post)
+    const isCollection = Boolean(input.paths[`${path}/{${re[3].replace(/s$/, '')}}`])
+
+    if (isAction) {
+      const action = re[3]
+
+      console.error(`Stripe.${name}.${action}()`)
+    } else if (isCollection) {
+      const subname = re[3]
+
+      if (info.get) {
+        console.error(`Stripe.${name}.list${upperCaseFirst(subname)}()`)
+      }
+
+      if (info.post) {
+        console.error(`Stripe.${name}.create${toSingular(upperCaseFirst(subname))}()`)
+      }
+    } else {
+      // FIXME
+    }
+  }
+
+  if ((re = /^\/v1\/([a-z]+)\/\{([a-z]+)\}\/([a-z]+)\/\{([a-z]+)\}$/.exec(path))) {
+    const name = re[1]
+    const subname = re[3]
+
+    if (info.get) {
+      console.error(`Stripe.${name}.retrieve${toSingular(upperCaseFirst(subname))}()`)
+    }
+
+    if (info.post) {
+      console.error(`Stripe.${name}.update${toSingular(upperCaseFirst(subname))}()`)
+    }
+  }
 }
